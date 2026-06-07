@@ -21,23 +21,7 @@ public class SubscriptionsService {
         this.usersRepository = usersRepository;
     }
 
-    public List<UserResponse> getFollowing(Long userId, User currentUser) {
-        User user = usersRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("User not found"));
 
-        return user.getFollowing().stream()
-                .map(following -> new UserResponse(following, currentUser))
-                .collect(Collectors.toList());
-    }
-
-    public List<UserResponse> getFollowers(Long userId, User currentUser) {
-        User user = usersRepository.findById(userId)
-                .orElseThrow(() -> new RuntimeException("User not found"));
-
-        return user.getFollowers().stream()
-                .map(follower -> new UserResponse(follower, currentUser))
-                .collect(Collectors.toList());
-    }
 
     public List<UserResponse> searchUsers(String query) {
         return usersRepository.findByUsernameContainingIgnoreCase(query);

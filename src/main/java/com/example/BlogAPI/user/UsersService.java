@@ -28,10 +28,8 @@ public class UsersService {
         this.passwordEncoder = passwordEncoder;
     }
 
-    public List<UserResponse> getAllUsers() {
-        return usersRepository.findAll().stream()
-                .map(user -> convertToUserResponse(user))
-                .collect(Collectors.toList());
+    public List<User> getAllUsers() {
+        return usersRepository.findAll();
     }
 
     public UserResponse getUserById(Long id) {

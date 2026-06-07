@@ -45,7 +45,7 @@ public class BlogEventConsumer {
     }
 
     @KafkaListener(
-            topics = "${kafka.topics.post-updated}",
+            topics = "${kafka.topics.comment-created}",
             groupId = "${spring.kafka.consumer.group-id}"
     )
     public void handleCommentCreated(@Payload CommentCreatedEvent event) {

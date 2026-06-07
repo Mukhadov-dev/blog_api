@@ -30,8 +30,8 @@ public class UsersController {
     }
 
     @GetMapping
-    public ResponseEntity<List<UserResponse>> getAllUsers() {
-        List<UserResponse> users = usersService.getAllUsers();
+    public ResponseEntity<List<User>> getAllUsers() {
+        List<User> users = usersService.getAllUsers();
         return new ResponseEntity<>(users, HttpStatus.OK);
     }
 
@@ -94,23 +94,7 @@ public class UsersController {
         return ResponseEntity.ok(Map.of("message", "Successfully unfollowed " + username));
     }
 
-    @GetMapping("/{userId}/following")
-    public ResponseEntity<?> getFollowing(@PathVariable Long userId, Authentication authentication) {
-        User currentUser = usersService.getCurrentUser(authentication);
 
-        List<UserResponse> following = subscriptionsService.getFollowing(userId, currentUser);
-
-        return ResponseEntity.ok(following);
-    }
-
-    @GetMapping("/{userId}/follower")
-    public ResponseEntity<?> getFollowers(@PathVariable Long userId, Authentication authentication) {
-        User currentUser = usersService.getCurrentUser(authentication);
-
-        List<UserResponse> followers = subscriptionsService.getFollowers(userId, currentUser);
-
-        return ResponseEntity.ok(followers);
-    }
 
     @GetMapping("/search")
     public ResponseEntity<List<UserResponse>> searchUsers(@RequestParam String q, Authentication authentication) {
