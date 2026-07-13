@@ -37,9 +37,13 @@ kafka:
   topics:
     post-created: post-created-topic
     post-updated: post-updated-topic
+    post-deleted: post-deleted-topic
     comment-created: comment-created-topic
     comment-updated: comment-updated-topic
+    comment-deleted: comment-deleted-topic
     user-registered: user-registered-topic
+    user-updated: user-updated-topic
+    user-deleted: user-deleted-topic
 
 server:
   port: 8080

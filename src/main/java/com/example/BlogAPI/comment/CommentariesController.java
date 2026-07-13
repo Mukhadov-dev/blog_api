@@ -4,23 +4,21 @@ import com.example.BlogAPI.comment.dto.CommentaryRequest;
 import com.example.BlogAPI.comment.dto.CommentaryResponse;
 import com.example.BlogAPI.comment.dto.CommentaryUpdate;
 import jakarta.validation.Valid;
-import org.springframework.beans.factory.annotation.Autowired;
+import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.Authentication;
 import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
 @RestController
+@RequiredArgsConstructor
 @RequestMapping("/api/posts/{postId}/commentaries")
 public class CommentariesController {
-    private final CommentariesService commentariesService;
 
-    @Autowired
-    public CommentariesController(CommentariesService commentariesService) {
-        this.commentariesService = commentariesService;
-    }
+    private final CommentariesService commentariesService;
 
     @GetMapping()
     public ResponseEntity<List<CommentaryResponse>> getAllCommentaries(@PathVariable Long postId) {
@@ -35,32 +33,32 @@ public class CommentariesController {
     }
 
     @PostMapping()
-    public ResponseEntity<?> createCommentary(@PathVariable Long postId, @Valid @RequestBody CommentaryRequest commentaryRequest, BindingResult bindingResult) {
+    public ResponseEntity<?> createCommentary(@PathVariable Long postId, @Valid @RequestBody CommentaryRequest commentaryRequest,
+                                              Authentication authentication, BindingResult bindingResult) {
         if (bindingResult.hasErrors()) {
             return new ResponseEntity<>("Cannot create a commentary", HttpStatus.BAD_REQUEST);
         }
 
-        CommentaryResponse createdCommentary = commentariesService.writeCommentary(postId, commentaryRequest);
+        CommentaryResponse createdCommentary = commentariesService.writeCommentary(postId, commentaryRequest, authentication);
 
         return new ResponseEntity<>(createdCommentary, HttpStatus.CREATED);
     }
 
     @PutMapping("/{commentaryId}")
     public ResponseEntity<?> updateCommentary(@PathVariable Long postId, @PathVariable Long commentaryId, @Valid @RequestBody CommentaryUpdate commentaryUpdate,
-                                              BindingResult bindingResult) {
+                                              Authentication authentication, BindingResult bindingResult) {
         if (bindingResult.hasErrors()) {
             return new ResponseEntity<>("Commentary ID is invalid",  HttpStatus.BAD_REQUEST);
         }
 
-        CommentaryResponse updatedCommentary = commentariesService.updateCommentary(commentaryId, commentaryUpdate);
+        CommentaryResponse updatedCommentary = commentariesService.updateCommentary(commentaryId, commentaryUpdate, authentication);
 
         return ResponseEntity.ok(updatedCommentary);
     }
 
     @DeleteMapping("/{commentaryId}")
-    public ResponseEntity<?> deleteCommentary(@PathVariable Long postId, @PathVariable Long commentaryId) {
-        commentariesService.deleteCommentary(commentaryId);
-        return ResponseEntity.ok().build();
+    public ResponseEntity<Void> deleteCommentary(@PathVariable Long postId, @PathVariable Long commentaryId, Authentication authentication) {
+        commentariesService.deleteCommentary(commentaryId, authentication);
+        return ResponseEntity.noContent().build();
     }
-
 }

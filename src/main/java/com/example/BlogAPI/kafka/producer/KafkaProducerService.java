@@ -23,14 +23,26 @@ public class KafkaProducerService {
     @Value("${kafka.topics.post-updated}")
     private String postUpdatedTopic;
 
+    @Value("${kafka.topics.post-deleted}")
+    private String postDeletedTopic;
+
     @Value("${kafka.topics.comment-created}")
     private String commentCreatedTopic;
 
-    @Value("comment-updated-topic")
+    @Value("${kafka.topics.comment-updated}")
     private String commentUpdatedTopic;
+
+    @Value("${kafka.topics.comment-deleted}")
+    private String commentDeletedTopic;
 
     @Value("${kafka.topics.user-registered}")
     private String userRegisteredTopic;
+
+    @Value("${kafka.topics.user-updated}")
+    private String userUpdatedTopic;
+
+    @Value("${kafka.topics.user-deleted}")
+    private String userDeletedTopic;
 
     public void sendPostCreatedEvent(PostCreatedEvent event) {
         sendEvent(postCreatedTopic, event.getPostId().toString(), event);
@@ -38,6 +50,10 @@ public class KafkaProducerService {
 
     public void sendPostUpdatedEvent(PostUpdatedEvent event) {
         sendEvent(postUpdatedTopic, event.getPostId().toString(), event);
+    }
+
+    public void sendPostDeletedEvent(PostDeletedEvent event) {
+        sendEvent(postDeletedTopic, event.getPostId().toString(), event);
     }
 
     public void sendCommentCreatedEvent(CommentCreatedEvent event) {
@@ -48,8 +64,20 @@ public class KafkaProducerService {
         sendEvent(commentUpdatedTopic, event.getCommentId().toString(), event);
     }
 
+    public void sendCommentDeletedEvent(CommentDeletedEvent event) {
+        sendEvent(commentDeletedTopic, event.getCommentId().toString(), event);
+    }
+
     public void sendUserRegisteredEvent(UserRegisteredEvent event) {
         sendEvent(userRegisteredTopic, event.getUserId().toString(), event);
+    }
+
+    public void sendUserUpdatedEvent(UserUpdatedEvent event) {
+        sendEvent(userRegisteredTopic, event.getUserId().toString(), event);
+    }
+
+    public void sendUserDeletedEvent(UserDeletedEvent event) {
+        sendEvent(userDeletedTopic, event.getUserId().toString(), event);
     }
 
     private void sendEvent(String topic, String key, Object event) {

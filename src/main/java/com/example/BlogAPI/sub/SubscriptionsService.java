@@ -2,13 +2,10 @@ package com.example.BlogAPI.sub;
 
 import com.example.BlogAPI.user.User;
 import com.example.BlogAPI.user.UsersRepository;
-import com.example.BlogAPI.user.dto.UserResponse;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.List;
-import java.util.stream.Collectors;
 
 @Service
 @Transactional(readOnly = true)
@@ -19,12 +16,6 @@ public class SubscriptionsService {
     @Autowired
     public SubscriptionsService(UsersRepository usersRepository) {
         this.usersRepository = usersRepository;
-    }
-
-
-
-    public List<UserResponse> searchUsers(String query) {
-        return usersRepository.findByUsernameContainingIgnoreCase(query);
     }
 
     @Transactional

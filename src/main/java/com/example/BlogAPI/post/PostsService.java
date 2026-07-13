@@ -2,19 +2,20 @@ package com.example.BlogAPI.post;
 
 import com.example.BlogAPI.comment.dto.CommentaryRequest;
 import com.example.BlogAPI.kafka.events.PostCreatedEvent;
+import com.example.BlogAPI.kafka.events.PostDeletedEvent;
 import com.example.BlogAPI.kafka.events.PostUpdatedEvent;
-import com.example.BlogAPI.kafka.producer.KafkaProducerService;
 import com.example.BlogAPI.post.dto.PostRequest;
 import com.example.BlogAPI.post.dto.PostResponse;
 import com.example.BlogAPI.post.dto.PostUpdate;
-import com.example.BlogAPI.tag.Tag;
 import com.example.BlogAPI.user.User;
 import com.example.BlogAPI.user.UsersRepository;
 import jakarta.persistence.EntityNotFoundException;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.modelmapper.ModelMapper;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -23,30 +24,17 @@ import java.util.stream.Collectors;
 
 @Service
 @Slf4j
+@RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class PostsService {
 
     private final PostsRepository postsRepository;
     private final UsersRepository usersRepository;
     private final ModelMapper modelMapper;
-    private final KafkaProducerService kafkaProducer;
     private final ApplicationEventPublisher eventPublisher;
 
-    @Autowired
-    public PostsService(PostsRepository postsRepository,
-                        UsersRepository usersRepository,
-                        ModelMapper modelMapper,
-                        KafkaProducerService kafkaProducer,
-                        ApplicationEventPublisher eventPublisher) {
-        this.postsRepository = postsRepository;
-        this.usersRepository = usersRepository;
-        this.modelMapper = modelMapper;
-        this.kafkaProducer = kafkaProducer;
-        this.eventPublisher = eventPublisher;
-    }
-
     public List<PostResponse> getAllPosts() {
-        log.info("Fetching all posts");
+        log.info("Getting all posts");
         return postsRepository.findAll().stream()
                 .map(this::convertToPostResponseWithoutComments)
                 .collect(Collectors.toList());
@@ -61,98 +49,77 @@ public class PostsService {
     }
 
     @Transactional
-    public PostResponse writePost(PostRequest postRequest) {
+    public PostResponse writePost(PostRequest postRequest, Authentication authentication) {
         log.info("Creating new post: {}", postRequest.getName());
 
+        User currentUser = usersRepository.findByUsername(authentication.getName())
+                .orElseThrow(() -> new EntityNotFoundException("User with name " + authentication.getName() + " not found"));
+
         Post post = convertToPost(postRequest);
-
-        if (postRequest.getUser() != null &&
-                postRequest.getUser().getUsername() != null) {
-
-            User user = usersRepository.findByUsername(
-                            postRequest.getUser().getUsername())
-                    .orElseThrow(() ->
-                            new RuntimeException("User not found"));
-
-            post.setUser(user);
-        }
+        post.setUser(currentUser);
 
         Post savedPost = postsRepository.save(post);
 
-        eventPublisher.publishEvent(new PostCreatedEvent(savedPost.getId()));
+        eventPublisher.publishEvent(buildPostCreatedEvent(savedPost, currentUser));
+        log.info("Post created, event published: postId={}", savedPost.getId());
 
         return convertToPostResponseWithoutComments(savedPost);
     }
 
     @Transactional
-    public PostResponse updatePost(Long id, PostUpdate postUpdate) {
-        log.info("Updating post: {}", id);
+    public PostResponse updatePost(Long postId, PostUpdate postUpdate, Authentication authentication) {
+        log.info("Updating post: {}", postId);
 
-        Post post = postsRepository.findById(id)
+        Post postToUpdate = postsRepository.findById(postId)
                 .orElseThrow(() ->
                         new EntityNotFoundException("Post not found"));
 
-        post.setName(postUpdate.getName());
-        post.setContent(postUpdate.getContent());
+        if (!postToUpdate.getUser().getUsername().equals(authentication.getName())) {
+            throw new AccessDeniedException("You can only edit your own posts");
+        }
 
-        Post updatedPost = postsRepository.save(post);
+        postToUpdate.setName(postUpdate.getName());
+        postToUpdate.setContent(postUpdate.getContent());
 
-        sendPostUpdatedEvent(updatedPost);
+        eventPublisher.publishEvent(buildPostUpdatedEvent(postToUpdate));
+        log.info("Post updated, event published: postId={}", postId);
 
-        return convertToPostResponseWithoutComments(updatedPost);
+        return convertToPostResponseWithoutComments(postToUpdate);
     }
 
     @Transactional
-    public void deletePost(Long id) {
-        if (!postsRepository.existsById(id)) {
-            throw new EntityNotFoundException("Post not found");
+    public void deletePost(Long id, Authentication authentication) {
+        Post post = postsRepository.findById(id)
+                        .orElseThrow(() -> new EntityNotFoundException("Post with id " + id + " not found"));
+
+        if (!post.getUser().getUsername().equals(authentication.getName())) {
+            throw new AccessDeniedException("You can only delete your own posts");
         }
 
-        postsRepository.deleteById(id);
-        log.info("Post deleted: {}", id);
+        postsRepository.delete(post);
+        eventPublisher.publishEvent(new PostDeletedEvent(id));
+        log.info("Post deleted, event published: postId={}", id);
     }
 
-    private void sendPostCreatedEvent(Post post) {
-        try {
-            PostCreatedEvent event = new PostCreatedEvent(
-                    post.getId(),
-                    post.getUser().getId(),
-                    post.getUser().getUsername(),
-                    post.getName(),
-                    post.getContent(),
-                    post.getTags() != null
-                            ? post.getTags().stream()
-                            .map(Tag::getName)
-                            .collect(Collectors.toList())
-                            : List.of(),
-                    post.getCreatedAt()
-            );
-
-            kafkaProducer.sendPostCreatedEvent(event);
-        } catch (Exception e) {
-            log.error("Kafka PostCreatedEvent failed", e);
-        }
+    private PostCreatedEvent buildPostCreatedEvent(Post post, User user) {
+        return new PostCreatedEvent(
+                post.getId(),
+                user.getId(),
+                user.getUsername(),
+                post.getName(),
+                post.getContent(),
+                post.getCreatedAt()
+        );
     }
 
-    private void sendPostUpdatedEvent(Post post) {
-        try {
-            PostUpdatedEvent event = new PostUpdatedEvent(
-                    post.getId(),
-                    post.getName(),
-                    post.getContent(),
-                    post.getTags() != null
-                            ? post.getTags().stream()
-                            .map(Tag::getName)
-                            .collect(Collectors.toList())
-                            : List.of(),
-                    post.getUser().getId(),
-                    post.getUpdatedAt()
-            );
-
-            kafkaProducer.sendPostUpdatedEvent(event);
-        } catch (Exception e) {
-            log.error("Kafka PostUpdatedEvent failed", e);
-        }
+    private PostUpdatedEvent buildPostUpdatedEvent(Post post) {
+        return new PostUpdatedEvent(
+                post.getId(),
+                post.getName(),
+                post.getContent(),
+                post.getUser().getId(),
+                post.getUpdatedAt()
+        );
     }
 
     private Post convertToPost(PostRequest postRequest) {

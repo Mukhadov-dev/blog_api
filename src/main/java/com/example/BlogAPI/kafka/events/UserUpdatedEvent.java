@@ -11,23 +11,15 @@ import java.util.UUID;
 @Data
 @NoArgsConstructor
 @EqualsAndHashCode(callSuper = true)
-public class CommentUpdatedEvent extends BaseEvent {
-    private Long commentId;
-    private String text;
-    private Long postId;
-    private String postName;
+public class UserUpdatedEvent extends BaseEvent {
     private Long userId;
     private String username;
 
     @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
     private LocalDateTime updatedAt;
 
-    public CommentUpdatedEvent(Long commentId, String text, Long postId, String postName, Long userId, String username, LocalDateTime updatedAt) {
-        super(UUID.randomUUID().toString(), LocalDateTime.now(), "COMMENT_UPDATED");
-        this.commentId = commentId;
-        this.text = text;
-        this.postId = postId;
-        this.postName = postName;
+    public UserUpdatedEvent(Long userId, String username, LocalDateTime updatedAt) {
+        super(UUID.randomUUID().toString(), LocalDateTime.now(), "USER_UPDATED");
         this.userId = userId;
         this.username = username;
         this.updatedAt = updatedAt;

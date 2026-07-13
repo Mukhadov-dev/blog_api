@@ -86,26 +86,6 @@ public class User {
         return this.roles.contains(role);
     }
 
-    public void addPost(Post post) {
-        posts.add(post);
-        post.setUser(this);
-    }
-
-    public void removePost(Post post) {
-        posts.remove(post);
-        post.setUser(null);
-    }
-
-    public void addCommentary(Commentary commentary) {
-        comments.add(commentary);
-        commentary.setUser(this);
-    }
-
-    public void removeCommentary(Commentary commentary) {
-        comments.remove(commentary);
-        commentary.setUser(null);
-    }
-
     public void follow(User userToFollow) {
         following.add(userToFollow);
         userToFollow.getFollowers().add(this);
@@ -118,13 +98,5 @@ public class User {
 
     public boolean isFollowing(User user) {
         return following.contains(user);
-    }
-
-    public int getFollowerCount() {
-        return followers.size();
-    }
-
-    public int getFollowingCount() {
-        return following.size();
     }
 }

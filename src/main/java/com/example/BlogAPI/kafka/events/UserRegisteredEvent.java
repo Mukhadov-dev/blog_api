@@ -1,6 +1,6 @@
 package com.example.BlogAPI.kafka.events;
 
-import lombok.AllArgsConstructor;
+import com.fasterxml.jackson.annotation.JsonFormat;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
@@ -16,10 +16,14 @@ public class UserRegisteredEvent extends BaseEvent {
     private String username;
     private String email;
 
-    public UserRegisteredEvent(Long userId, String username, String email) {
+    @JsonFormat(pattern = "yyyy-MM-dd'T'HH:mm:ss")
+    private LocalDateTime createdAt;
+
+    public UserRegisteredEvent(Long userId, String username, String email, LocalDateTime createdAt) {
         super(UUID.randomUUID().toString(), LocalDateTime.now(), "USER_REGISTERED");
         this.userId = userId;
         this.username = username;
         this.email = email;
+        this.createdAt = createdAt;
     }
 }

@@ -4,16 +4,19 @@ import com.example.BlogAPI.comment.dto.CommentaryRequest;
 import com.example.BlogAPI.comment.dto.CommentaryResponse;
 import com.example.BlogAPI.comment.dto.CommentaryUpdate;
 import com.example.BlogAPI.kafka.events.CommentCreatedEvent;
+import com.example.BlogAPI.kafka.events.CommentDeletedEvent;
 import com.example.BlogAPI.kafka.events.CommentUpdatedEvent;
-import com.example.BlogAPI.kafka.producer.KafkaProducerService;
 import com.example.BlogAPI.post.Post;
 import com.example.BlogAPI.post.PostsRepository;
 import com.example.BlogAPI.user.User;
 import com.example.BlogAPI.user.UsersRepository;
 import jakarta.persistence.EntityNotFoundException;
+import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.modelmapper.ModelMapper;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -22,26 +25,19 @@ import java.util.stream.Collectors;
 
 @Service
 @Slf4j
+@RequiredArgsConstructor
 @Transactional(readOnly = true)
 public class CommentariesService {
     private final CommentariesRepository commentariesRepository;
     private final PostsRepository postsRepository;
     private final UsersRepository usersRepository;
     private final ModelMapper modelMapper;
-    private final KafkaProducerService kafkaProducerService;
-
-    @Autowired
-    public CommentariesService(CommentariesRepository commentariesRepository, PostsRepository postsRepository, UsersRepository usersRepository, ModelMapper modelMapper, KafkaProducerService kafkaProducerService) {
-        this.commentariesRepository = commentariesRepository;
-        this.postsRepository = postsRepository;
-        this.usersRepository = usersRepository;
-        this.modelMapper = modelMapper;
-        this.kafkaProducerService = kafkaProducerService;
-    }
+    private final ApplicationEventPublisher eventPublisher;
 
     public List<CommentaryResponse> getAllCommentariesByPost(Long postId) {
-        return commentariesRepository.findAll().stream()
-                .map(commentary -> convertToCommentaryResponse(commentary))
+        log.info("Getting all commentaries by post id {}", postId);
+        return commentariesRepository.findByPostId(postId).stream()
+                .map(this::convertToCommentaryResponse)
                 .collect(Collectors.toList());
     }
 
@@ -53,15 +49,18 @@ public class CommentariesService {
     }
 
     @Transactional
-    public CommentaryResponse writeCommentary(Long postId, CommentaryRequest commentaryRequest) {
+    public CommentaryResponse writeCommentary(Long postId, CommentaryRequest commentaryRequest, Authentication authentication) {
         log.info("Creating comment for post: {}", postId);
+
+        if (commentaryRequest.getUser() == null || commentaryRequest.getUser().getUsername() == null) {
+            throw new IllegalArgumentException("Comment author username must not be null");
+        }
 
         Post post = postsRepository.findById(postId)
                 .orElseThrow(() -> new EntityNotFoundException("Post with id: " + postId + " not found"));
 
-
-        User user = usersRepository.findByUsername(commentaryRequest.getUser().getUsername())
-                .orElseThrow(() -> new RuntimeException("User with name " + commentaryRequest.getUser().getUsername() + " not found"));
+        User user = usersRepository.findByUsername(authentication.getName())
+                .orElseThrow(() -> new EntityNotFoundException("User with name " + authentication.getName() + " not found"));
 
         Commentary commentary = convertToCommentary(commentaryRequest);
         commentary.setPost(post);
@@ -69,62 +68,67 @@ public class CommentariesService {
 
         Commentary savedCommentary = commentariesRepository.save(commentary);
 
-        try {
-            CommentCreatedEvent event = new CommentCreatedEvent(
-                    savedCommentary.getId(),
-                    savedCommentary.getText(),
-                    post.getId(),
-                    post.getName(),
-                    savedCommentary.getUser().getId(),
-                    savedCommentary.getUser().getUsername(),
-                    savedCommentary.getCreatedAt()
-            );
-
-            kafkaProducerService.sendCommentCreatedEvent(event);
-            log.info("Comment created and event sent to Kafka: commentId={}", savedCommentary.getId());
-        } catch (Exception e) {
-            log.error("Failed to send CommentCreatedEvent to Kakfa: {}", e.getMessage());
-        }
+        eventPublisher.publishEvent(buildCommentCreatedEvent(post, user, savedCommentary));
+        log.info("Commentary created, event published: commentId={}", commentary.getId());
 
         return convertToCommentaryResponse(savedCommentary);
     }
 
     @Transactional
-    public CommentaryResponse updateCommentary(Long commentaryId, CommentaryUpdate commentaryUpdate) {
+    public CommentaryResponse updateCommentary(Long commentaryId, CommentaryUpdate commentaryUpdate, Authentication authentication) {
         log.info("Updating comment: {}",  commentaryId);
+
         Commentary commentaryToUpdate = commentariesRepository.findById(commentaryId)
                 .orElseThrow(() -> new EntityNotFoundException("Commentary with id: " + commentaryId + " not found"));
 
-        commentaryToUpdate.setText(commentaryUpdate.getText());
-
-        Commentary updatedCommentary = commentariesRepository.save(commentaryToUpdate);
-
-        try {
-            CommentUpdatedEvent event = new CommentUpdatedEvent(
-                    updatedCommentary.getId(),
-                    updatedCommentary.getText(),
-                    updatedCommentary.getPost().getId(),
-                    updatedCommentary.getPost().getName(),
-                    updatedCommentary.getUser().getId(),
-                    updatedCommentary.getUser().getUsername()
-            );
-
-            kafkaProducerService.sendCommentUpdatedEvent(event);
-            log.info("Comment updated and event sent to Kafka: commentId={}", updatedCommentary.getId());
-        } catch (Exception e) {
-            log.error("Failed to send CommentUpdatedEvent to Kafka: {}", e.getMessage());
+        if (!commentaryToUpdate.getUser().getUsername().equals(authentication.getName())) {
+            throw new AccessDeniedException("You can only edit your own commentary");
         }
 
-        return convertToCommentaryResponse(updatedCommentary);
+        commentaryToUpdate.setText(commentaryUpdate.getText());
+
+        eventPublisher.publishEvent(buildCommentUpdatedEvent(commentaryToUpdate));
+        log.info("Commentary updated, event published: commentId={}", commentaryId);
+
+        return convertToCommentaryResponse(commentaryToUpdate);
     }
 
     @Transactional
-    public void deleteCommentary(Long commentaryId) {
-        if (!commentariesRepository.existsById(commentaryId)) {
-            throw new EntityNotFoundException("Commentary with id: " + commentaryId + " not found!");
+    public void deleteCommentary(Long id, Authentication authentication) {
+        Commentary commentary = commentariesRepository.findById(id)
+                        .orElseThrow(() -> new EntityNotFoundException("Commentary with id: " + id + " not found"));
+
+        if (!commentary.getUser().getUsername().equals(authentication.getName())) {
+            throw new AccessDeniedException("You can only delete your own commentary");
         }
 
-        commentariesRepository.deleteById(commentaryId);
+        commentariesRepository.delete(commentary);
+        eventPublisher.publishEvent(new CommentDeletedEvent(id));
+        log.info("Commentary deleted, event published: commentId={}", id);
+    }
+
+    private CommentCreatedEvent buildCommentCreatedEvent(Post post, User user, Commentary commentary) {
+        return new CommentCreatedEvent(
+                commentary.getId(),
+                commentary.getText(),
+                post.getId(),
+                post.getName(),
+                user.getId(),
+                user.getUsername(),
+                commentary.getCreatedAt()
+        );
+    }
+
+    private CommentUpdatedEvent buildCommentUpdatedEvent(Commentary commentary) {
+        return new CommentUpdatedEvent(
+                commentary.getId(),
+                commentary.getText(),
+                commentary.getPost().getId(),
+                commentary.getPost().getName(),
+                commentary.getUser().getId(),
+                commentary.getUser().getUsername(),
+                commentary.getUpdatedAt()
+        );
     }
 
     private Commentary convertToCommentary(CommentaryRequest commentaryRequest) {
