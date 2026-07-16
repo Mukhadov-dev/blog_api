@@ -11,6 +11,9 @@ import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.modelmapper.ModelMapper;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.CachePut;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
@@ -35,14 +38,10 @@ public class UsersService {
                 .collect(Collectors.toList());
     }
 
+    @Cacheable(value = "users", key = "#id")
     public UserResponse getUserById(Long id) {
         return convertToUserResponse(usersRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("User not found with id: " + id)));
-    }
-
-    public UserResponse getUserByUsername(String username) {
-        return convertToUserResponse(usersRepository.findByUsername(username)
-                .orElseThrow(() -> new EntityNotFoundException("User with username " + username + " not found!")));
     }
 
     @Transactional
@@ -58,6 +57,7 @@ public class UsersService {
         return convertToUserResponse(savedUser);
     }
 
+    @CachePut(value = "users", key = "#result.id")
     @Transactional
     public UserResponse updateUser(Long id, UserUpdate userUpdate, Authentication authentication) {
         log.info("Updating user: {}", id);
@@ -77,6 +77,7 @@ public class UsersService {
         return convertToUserResponse(userToUpdate);
     }
 
+    @CacheEvict(value = "users", key = "#id")
     @Transactional
     public void deleteUser(Long id, Authentication authentication) {
         User user = usersRepository.findById(id)

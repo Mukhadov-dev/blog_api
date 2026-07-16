@@ -13,6 +13,9 @@ import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.modelmapper.ModelMapper;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.CachePut;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
@@ -40,6 +43,7 @@ public class PostsService {
                 .collect(Collectors.toList());
     }
 
+    @Cacheable(value = "posts", key = "#id")
     public PostResponse getPostByIdWithComments(Long id) {
         Post post = postsRepository.findById(id)
                 .orElseThrow(() ->
@@ -66,6 +70,7 @@ public class PostsService {
         return convertToPostResponseWithoutComments(savedPost);
     }
 
+    @CachePut(value = "posts", key = "#result.id")
     @Transactional
     public PostResponse updatePost(Long postId, PostUpdate postUpdate, Authentication authentication) {
         log.info("Updating post: {}", postId);
@@ -84,9 +89,10 @@ public class PostsService {
         eventPublisher.publishEvent(buildPostUpdatedEvent(postToUpdate));
         log.info("Post updated, event published: postId={}", postId);
 
-        return convertToPostResponseWithoutComments(postToUpdate);
+        return convertToPostResponseWithComments(postToUpdate);
     }
 
+    @CacheEvict(value = "posts", key = "#id")
     @Transactional
     public void deletePost(Long id, Authentication authentication) {
         Post post = postsRepository.findById(id)
