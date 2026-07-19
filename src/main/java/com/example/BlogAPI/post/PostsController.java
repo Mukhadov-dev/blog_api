@@ -3,6 +3,7 @@ package com.example.BlogAPI.post;
 import com.example.BlogAPI.post.dto.PostRequest;
 import com.example.BlogAPI.post.dto.PostResponse;
 import com.example.BlogAPI.post.dto.PostUpdate;
+import com.example.BlogAPI.user.UsersService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -12,6 +13,7 @@ import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequiredArgsConstructor
@@ -19,6 +21,7 @@ import java.util.List;
 public class PostsController {
 
     private final PostsService postsService;
+    private final PostStatsService postStatsService;
 
     @GetMapping()
     public ResponseEntity<List<PostResponse>> getAllPosts() {
@@ -57,5 +60,19 @@ public class PostsController {
     public ResponseEntity<Void> deletePost(@PathVariable Long id, Authentication authentication) {
         postsService.deletePost(id, authentication);
         return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/{id}/like")
+    public ResponseEntity<Map<String, Object>> likePost(
+            @PathVariable Long id,
+            Authentication authentication) {
+        return ResponseEntity.ok(postStatsService.like(id, authentication));
+    }
+
+    @DeleteMapping("/{id}/like")
+    public ResponseEntity<Map<String, Object>> unlikePost(
+            @PathVariable Long id,
+            Authentication authentication) {
+        return ResponseEntity.ok(postStatsService.unlike(id, authentication));
     }
 }

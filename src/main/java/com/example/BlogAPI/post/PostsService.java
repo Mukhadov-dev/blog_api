@@ -35,6 +35,7 @@ public class PostsService {
     private final UsersRepository usersRepository;
     private final ModelMapper modelMapper;
     private final ApplicationEventPublisher eventPublisher;
+    private final PostStatsService postStatsService;
 
     public List<PostResponse> getAllPosts() {
         log.info("Getting all posts");
@@ -48,6 +49,12 @@ public class PostsService {
         Post post = postsRepository.findById(id)
                 .orElseThrow(() ->
                         new EntityNotFoundException("Post with id " + id + " not found"));
+
+        Long views = postStatsService.incrementViews(id);
+        Long likes = postStatsService.getLikes(id);
+
+        post.setViewsCount(views);
+        post.setLikesCount(likes);
 
         return convertToPostResponseWithComments(post);
     }
