@@ -1,4 +1,4 @@
-# Blog API
+# Blog platform
 
 Backend-приложение для блог-платформы, реализованное на Java с использованием Spring Boot.  
 Проект представляет собой REST API для работы с постами, комментариями и пользователями, а также демонстрирует событийное взаимодействие через Apache Kafka.
@@ -7,10 +7,15 @@ Backend-приложение для блог-платформы, реализо�
 
 - **Java**
 - **Spring Boot**
+- **Spring Security**
+- **JWT**
 - **PostgreSQL**
 - **Apache Kafka**
 - **Docker / Docker Compose**
 - **Git**
+- **Liquibase**
+- **Redis**
+- **Maven**
 
 ## Функциональность
 

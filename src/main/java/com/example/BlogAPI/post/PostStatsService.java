@@ -91,7 +91,7 @@ public class PostStatsService {
     }
 
     @Transactional
-    @Scheduled(fixedDelay = 10000)
+    @Scheduled(fixedDelay = 300000)
     public void syncStatsToDatabase() {
         log.info("Syncing post stats to database...");
 
